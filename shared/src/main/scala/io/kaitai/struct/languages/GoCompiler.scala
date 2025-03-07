@@ -60,7 +60,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   }
 
   override def classHeader(name: List[String]): Unit = {
-    out.puts(s"type ${types2class(name)} struct {")
+    out.puts(s"type ${types2class(name, false)} struct {")
     out.inc
   }
 
@@ -78,9 +78,9 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     val paramsArg = params.map((p) =>
       s"${paramName(p.id)} ${kaitaiType2NativeType(p.dataType)}"
     ).mkString(", ")
-    out.puts(s"func New${types2class(name)}($paramsArg) *${types2class(name)} {")
+    out.puts(s"func New${types2class(name, true)}($paramsArg) *${types2class(name, false)} {")
     out.inc
-    out.puts(s"return &${types2class(name)}{")
+    out.puts(s"return &${types2class(name, false)}{")
     out.inc
     params.foreach(p => out.puts(s"${idToStr(p.id)}: ${paramName(p.id)},"))
     out.dec
@@ -119,10 +119,10 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       case None =>
         out.puts
         out.puts(
-          s"func (this *${types2class(typeProvider.nowClass.name)}) Read(" +
+          s"func (this *${types2class(typeProvider.nowClass.name, false)}) Read(" +
             s"io *$kstreamName, " +
             s"parent ${kaitaiType2NativeType(typeProvider.nowClass.parentType)}, " +
-            s"root *${types2class(typeProvider.topClass.name)}) (err error) {"
+            s"root *${types2class(typeProvider.topClass.name, false)}) (err error) {"
         )
         out.inc
         out.puts(s"${privateMemberName(IoIdentifier)} = io")
@@ -141,7 +141,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       case Some(e) =>
         out.puts
         out.puts(
-          s"func (this *${types2class(typeProvider.nowClass.name)}) " +
+          s"func (this *${types2class(typeProvider.nowClass.name, false)}) " +
             s"_read_${e.toSuffix}() (err error) {")
         out.inc
     }
@@ -417,7 +417,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
         s"$io.ReadBitsInt${Utils.upperCamelCase(bitEndian.toSuffix)}($width)"
       case t: UserType =>
         val addParams = t.args.map((a) => expression(a)).mkString(", ")
-        s"New${GoCompiler.types2class(t.classSpec.get.name)}($addParams)"
+        s"New${GoCompiler.types2class(t.classSpec.get.name, true)}($addParams)"
     }
   }
 
@@ -488,7 +488,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   }
 
   override def instanceHeader(className: List[String], instName: InstanceIdentifier, dataType: DataType, isNullable: Boolean): Unit = {
-    out.puts(s"func (this *${types2class(className)}) ${publicMemberName(instName)}() (v ${kaitaiType2NativeType(dataType)}, err error) {")
+    out.puts(s"func (this *${types2class(className, false)}) ${publicMemberName(instName)}() (v ${kaitaiType2NativeType(dataType)}, err error) {")
     out.inc
     translator.returnRes = Some(dataType match {
       case _: NumericType => "0"
@@ -523,7 +523,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
 
   override def enumDeclaration(curClass: List[String], enumName: String, enumColl: Seq[(Long, EnumValueSpec)]): Unit = {
     val fullEnumName: List[String] = curClass ++ List(enumName)
-    val fullEnumNameStr = types2class(fullEnumName)
+    val fullEnumNameStr = types2class(fullEnumName, false)
     importList.add("fmt")
 
     out.puts
@@ -594,7 +594,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
 
   override def classToString(toStringExpr: Ast.expr): Unit = {
     out.puts
-    out.puts(s"func (this ${types2class(typeProvider.nowClass.name)}) String() string {")
+    out.puts(s"func (this ${types2class(typeProvider.nowClass.name, false)}) String() string {")
     out.inc
     out.puts(s"return ${translator.translate(toStringExpr)}")
     out.dec
@@ -655,7 +655,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
 
   def ioAccessor(): Unit = {
     out.puts
-    out.puts(s"func (this ${types2class(typeProvider.nowClass.name)}) IO_() *$kstreamName {")
+    out.puts(s"func (this ${types2class(typeProvider.nowClass.name, false)}) IO_() *$kstreamName {")
     out.inc
     out.puts(s"return this._io")
     out.dec
@@ -722,8 +722,8 @@ object GoCompiler extends LanguageCompilerStatic
       case t: UserType => "*" + types2class(t.classSpec match {
         case Some(cs) => cs.name
         case None => t.name
-      })
-      case t: EnumType => types2class(t.enumSpec.get.name)
+      }, false)
+      case t: EnumType => types2class(t.enumSpec.get.name, false)
 
       case at: ArrayType => s"[]${kaitaiType2NativeType(at.elType)}"
 
@@ -731,7 +731,17 @@ object GoCompiler extends LanguageCompilerStatic
     }
   }
 
-  def types2class(names: List[String]): String = names.map(x => type2class(x)).mkString("_")
+  def types2class(names: List[String], skipRepeatedRoot: Boolean): String = {
+    if (names.length == 1) {
+      if (skipRepeatedRoot) {
+        ""
+      } else {
+        type2class(s"${names.head}")
+      }
+    } else {
+      names.drop(1).map(x => type2class(x)).mkString("_")
+    }
+  }
 
   def enumToStr(enumTypeAbs: List[String]): String = {
     val enumName = enumTypeAbs.last
@@ -740,7 +750,7 @@ object GoCompiler extends LanguageCompilerStatic
   }
 
   def enumToStr(typeName: List[String], enumName: String): String =
-    types2class(typeName) + "__" + type2class(enumName)
+    types2class(typeName, false) + "__" + type2class(enumName)
 
   override def kstreamName: String = "kaitai.Stream"
   override def kstructName: String = "kaitai.Struct"

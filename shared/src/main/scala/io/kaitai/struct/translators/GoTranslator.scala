@@ -256,7 +256,7 @@ class GoTranslator(out: StringLanguageOutputWriter, provider: TypeProvider, impo
   def trEnumByLabel(enumTypeAbs: List[String], label: String) =
     ResultString(GoCompiler.enumToStr(enumTypeAbs, label))
   def trEnumById(enumTypeAbs: List[String], id: String) =
-    ResultString(s"${types2class(enumTypeAbs)}($id)")
+    ResultString(s"${types2class(enumTypeAbs, false)}($id)")
 
   override def doBytesCompareOp(left: Ast.expr, op: Ast.cmpop, right: Ast.expr): String = {
     op match {
