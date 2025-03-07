@@ -577,6 +577,17 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.dec
     out.puts("}")
 
+    out.puts(s"func (v $fullEnumNameStr) Title() string {")
+    out.inc
+    out.puts(s"if v.IsA${fullEnumNameStr}() {")
+    out.inc
+    out.puts("return fmt.Sprintf(\"%s (%d)\", v, v)")
+    out.dec
+    out.puts("}")
+    out.puts("return v.String()")
+    out.dec
+    out.puts("}")
+
     out.puts(s"func ${fullEnumNameStr}Strings() []string {")
     out.inc
     out.puts(s"strings := make([]string, 0, len(valueNames_$fullEnumNameStr))")
