@@ -820,7 +820,7 @@ object GoCompiler extends LanguageCompilerStatic
   }
 
   def enumToStr(typeName: List[String], enumName: String): String =
-    types2class(typeName, false) + "__" + type2class(enumName)
+    types2class(typeName, false) + type2class(enumName)
 
   override def kstreamName: String = "kaitai.Stream"
   override def kstructName: String = "kaitai.Struct"
