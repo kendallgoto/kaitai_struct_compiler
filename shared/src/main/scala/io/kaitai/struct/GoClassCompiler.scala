@@ -1,6 +1,6 @@
 package io.kaitai.struct
 
-import io.kaitai.struct.datatype.DataType.{CalcIntType, KaitaiStreamType, UserTypeInstream}
+import io.kaitai.struct.datatype.DataType.{CalcIntType, KaitaiStreamType, AnyType, KaitaiStructType, UserTypeInstream}
 import io.kaitai.struct.datatype.{BigEndian, CalcEndian, Endianness, FixedEndian, InheritedEndian, LittleEndian}
 import io.kaitai.struct.exprlang.Ast
 import io.kaitai.struct.format._
@@ -13,12 +13,14 @@ class GoClassCompiler(
   config: RuntimeConfig
 ) extends ClassCompiler(classSpecs, topClass, config, GoCompiler) {
 
+  val golang = lang.asInstanceOf[GoCompiler]
+
   override def compileClass(curClass: ClassSpec): Unit = {
     provider.nowClass = curClass
 
     val extraAttrs = List(
       AttrSpec(List(), IoIdentifier, KaitaiStreamType),
-      AttrSpec(List(), RootIdentifier, UserTypeInstream(topClassName, None)),
+      AttrSpec(List(), RootIdentifier, KaitaiStructType),
       AttrSpec(List(), ParentIdentifier, curClass.parentType)
     ) ++ ExtraAttrs.forClassSpec(curClass, lang)
 
@@ -28,9 +30,15 @@ class GoClassCompiler(
     // Enums declaration defines types, so they need to go first
     compileEnums(curClass)
 
+    if (lang.config.readStoresPos)
+      golang.debugClassSequenceWithClassName(curClass.name, curClass.seq)
+
     // Basic struct declaration
     lang.classHeader(curClass.name)
     compileAttrDeclarations(curClass.seq ++ curClass.params ++ extraAttrs)
+    if (lang.config.readStoresPos)
+      lang.attributeDeclaration(SpecialIdentifier("Debug_"), AnyType, false)
+
     curClass.instances.foreach { case (instName, instSpec) =>
       compileInstanceDeclaration(instName, instSpec)
     }

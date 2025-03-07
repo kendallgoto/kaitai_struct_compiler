@@ -16,7 +16,8 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     with UniversalFooter
     with UniversalDoc
     with AllocateIOLocalVar
-    with GoReads {
+    with GoReads
+    with DebugGlobalClassSequence {
   import GoCompiler._
 
   override val translator = new GoTranslator(out, typeProvider, importList)
@@ -128,6 +129,9 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
         out.puts(s"${privateMemberName(IoIdentifier)} = io")
         out.puts(s"${privateMemberName(ParentIdentifier)} = parent")
         out.puts(s"${privateMemberName(RootIdentifier)} = root")
+        if(config.readStoresPos)
+          out.puts(s"this.Debug_ = map[string]*${kdebugName}{}")
+
         typeProvider.nowClass.meta.endian match {
           case Some(_: CalcEndian) =>
             out.puts(s"${privateMemberName(EndianIdentifier)} = -1")
@@ -155,8 +159,8 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   }
 
   override def attributeDeclaration(attrName: Identifier, attrType: DataType, isNullable: Boolean): Unit = {
-    if (idToStr(attrName) == "_root") {
-      out.puts(s"_root $kstructName")
+    if (idToStr(attrName) == "Debug_") {
+      out.puts(s"Debug_ map[string]*${kdebugName}")
     } else {
       out.puts(s"${idToStr(attrName)} ${kaitaiType2NativeType(attrType)}")
     }
@@ -677,6 +681,56 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.dec
     out.puts("}")
   }
+
+  override def fileFooter(topClassName: String): Unit = {
+    if (config.readStoresPos) {
+      out.puts(s"type ${kdebugName} struct {")
+      out.inc
+      out.puts("Start int64")
+      out.puts("End int64")
+      out.puts(s"Array []*${kdebugName}")
+      out.dec
+      out.puts("}")
+      out.puts(s"func ${kdebugNameInternal}Start(io *${kstreamName}) *${kdebugName} {")
+      out.inc
+      out.puts(s"d := &${kdebugName}{}")
+      out.puts("d.Start, _ = io.Pos()")
+      out.puts("return d")
+      out.dec
+      out.puts("}")
+    }
+  }
+
+  override def attrDebugStart(attrId: Identifier, attrType: DataType, ios: Option[String], rep: RepeatSpec): Unit = {
+    ios.foreach { (io) =>
+      val name = idToStr(attrId)
+      rep match {
+        case NoRepeat =>
+          out.puts(s"this.Debug_[\"$name\"] = ${kdebugNameInternal}Start($io)")
+        case _: RepeatExpr | RepeatEos | _: RepeatUntil =>
+          out.puts(s"this.Debug_[\"$name\"].Array = append(this.Debug_[\"$name\"].Array, ${kdebugNameInternal}Start($io))")
+      }
+    }
+  }
+  
+  override def attrDebugArrInit(attrId: Identifier, attrType: DataType): Unit = {}
+
+  override def attrDebugEnd(attrId: Identifier, attrType: DataType, io: String, rep: RepeatSpec): Unit = {
+    val name = idToStr(attrId)
+    rep match {
+      case NoRepeat =>
+          out.puts(s"this.Debug_[\"$name\"].End, _ = $io.Pos()")
+      case _: RepeatExpr =>
+        out.puts(s"this.Debug_[\"$name\"].Array[i].End, _ = $io.Pos()")
+      case RepeatEos | _: RepeatUntil =>
+        out.puts(s"this.Debug_[\"$name\"].Array[len(${privateMemberName(attrId)}) - 1].End, _ = $io.Pos()")
+    }
+  }
+  
+  override def debugClassSequenceWithClassName(curClass: List[String], seq: List[AttrSpec]) = {
+    val seqStr = seq.map((attr) => "\"" + idToStr(attr.id) + "\"").mkString(", ")
+    out.puts(s"var ${types2class(curClass, false)}_Fields = []string{${seqStr}}")
+  }
 }
 
 object GoCompiler extends LanguageCompilerStatic
@@ -774,4 +828,6 @@ object GoCompiler extends LanguageCompilerStatic
     case ConversionError => "strconv.NumError"
     case _ => s"kaitai.${err.name}"
   }
+  def kdebugName: String = "DebugData_"
+  def kdebugNameInternal: String = "debugData_"
 }
