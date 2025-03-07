@@ -78,7 +78,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     val paramsArg = params.map((p) =>
       s"${paramName(p.id)} ${kaitaiType2NativeType(p.dataType)}"
     ).mkString(", ")
-    out.puts(s"func New${types2class(name, true)}($paramsArg) *${types2class(name, false)} {")
+    out.puts(s"func New${types2class(name, true)}WithParameters($paramsArg) *${types2class(name, false)} {")
     out.inc
     out.puts(s"return &${types2class(name, false)}{")
     out.inc
@@ -122,7 +122,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
           s"func (this *${types2class(typeProvider.nowClass.name, false)}) Read(" +
             s"io *$kstreamName, " +
             s"parent ${kaitaiType2NativeType(typeProvider.nowClass.parentType)}, " +
-            s"root *${types2class(typeProvider.topClass.name, false)}) (err error) {"
+            s"root $kstructName) (err error) {"
         )
         out.inc
         out.puts(s"${privateMemberName(IoIdentifier)} = io")
@@ -150,10 +150,16 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   override def readFooter(): Unit = {
     out.puts("return err")
     universalFooter
+
+    readShortcut()
   }
 
   override def attributeDeclaration(attrName: Identifier, attrType: DataType, isNullable: Boolean): Unit = {
-    out.puts(s"${idToStr(attrName)} ${kaitaiType2NativeType(attrType)}")
+    if (idToStr(attrName) == "_root") {
+      out.puts(s"_root $kstructName")
+    } else {
+      out.puts(s"${idToStr(attrName)} ${kaitaiType2NativeType(attrType)}")
+    }
     translator.returnRes = None
   }
 
@@ -417,7 +423,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
         s"$io.ReadBitsInt${Utils.upperCamelCase(bitEndian.toSuffix)}($width)"
       case t: UserType =>
         val addParams = t.args.map((a) => expression(a)).mkString(", ")
-        s"New${GoCompiler.types2class(t.classSpec.get.name, true)}($addParams)"
+        s"New${GoCompiler.types2class(t.classSpec.get.name, true)}WithParameters($addParams)"
     }
   }
 
@@ -658,6 +664,16 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.puts(s"func (this ${types2class(typeProvider.nowClass.name, false)}) IO_() *$kstreamName {")
     out.inc
     out.puts(s"return this._io")
+    out.dec
+    out.puts("}")
+  }
+  
+  def readShortcut(): Unit = {
+    out.puts
+    out.puts(s"func New${types2class(typeProvider.nowClass.name, false)}(io *$kstreamName) (*${types2class(typeProvider.nowClass.name, false)}, error) {")
+    out.inc
+    out.puts(s"o := &${types2class(typeProvider.nowClass.name, false)}{}")
+    out.puts(s"return o, o.Read(io, nil, o)")
     out.dec
     out.puts("}")
   }
