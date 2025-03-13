@@ -425,6 +425,19 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     }
   }
 
+  private def handleCompositeTypeCastForceEnums(id: Identifier, r: TranslatorResult): TranslatorResult = {
+    id match {
+      case NamedIdentifier(name) =>
+        val typ = combinedType(typeProvider.determineType(name))
+        typ match {
+          case EnumType(_,basedOn) => ResultString(s"${kaitaiType2NativeType(basedOn)}(${translator.resToStr(r)})")
+          case _ => castToType(r, typ)
+        }
+      case _ =>
+        r
+    }
+  }
+
   override def handleAssignmentSimple(id: Identifier, r: TranslatorResult): Unit = {
     val expr = translator.resToStr(handleCompositeTypeCast(id, r))
     out.puts(s"${privateMemberName(id)} = $expr")
@@ -435,7 +448,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   //   out.puts(s"${localTemporaryName(BytesOutIdentifier)} = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr)")
   // }
   override def handleAssignmentSimpleBytes(id: Identifier, r: TranslatorResult): Unit = {
-    val expr = translator.resToStr(handleCompositeTypeCast(id, r))
+    val expr = translator.resToStr(handleCompositeTypeCastForceEnums(id, r))
     out.puts(s"${localTemporaryName(BytesOutIdentifier)}, err = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr)")
     translator.outAddErrCheck()
   }
