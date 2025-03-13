@@ -16,7 +16,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     with UniversalFooter
     with UniversalDoc
     with AllocateIOLocalVar
-    with GoReads
+    with GoWrites
     with DebugGlobalClassSequence {
   import GoCompiler._
 
@@ -56,6 +56,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     outHeader.puts
 
     importList.add("github.com/kaitai-io/kaitai_struct_go_runtime/kaitai")
+    importList.add("encoding/binary")
 
     out.puts
   }
@@ -202,6 +203,23 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.puts("}")
   }
 
+  override def attrBytesHybrid(leProc: () => Unit, beProc: () => Unit): Unit = {
+    out.puts(s"switch ${privateMemberName(EndianIdentifier)} {")
+    out.puts("case 0:")
+    out.inc
+    beProc()
+    out.dec
+    out.puts("case 1:")
+    out.inc
+    leProc()
+    out.dec
+    out.puts("default:")
+    out.inc
+    out.puts(s"err = ${GoCompiler.ksErrorName(UndecidedEndiannessError)}{}")
+    out.dec
+    out.puts("}")
+  }
+
   override def attrFixedContentsParse(attrName: Identifier, contents: Array[Byte]): Unit = {
     out.puts(s"${privateMemberName(attrName)}, err = $normalIO.ReadBytes(${contents.length})")
 
@@ -330,6 +348,12 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.puts(s"$name = append($name, $expr)")
   }
 
+  override def handleAssignmentRepeatEosBytes(id: Identifier, r: TranslatorResult): Unit = {
+    val expr = translator.resToStr(r)
+    out.puts(s"${localTemporaryName(BytesOutIdentifier)}, err = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr[i])")
+    translator.outAddErrCheck()
+  }
+
   override def condRepeatExprHeader(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit = {
     out.puts(s"for i := 0; i < int(${expression(repeatExpr)}); i++ {")
     out.inc
@@ -344,6 +368,9 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   override def handleAssignmentRepeatExpr(id: Identifier, r: TranslatorResult): Unit =
     handleAssignmentRepeatEos(id, r)
 
+  override def handleAssignmentRepeatExprBytes(id: Identifier, r: TranslatorResult): Unit =
+    handleAssignmentRepeatEosBytes(id, r)
+
   override def condRepeatUntilHeader(id: Identifier, io: String, dataType: DataType, untilExpr: Ast.expr): Unit = {
     out.puts(s"for i := 1;; i++ {")
     out.inc
@@ -354,6 +381,12 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     val tempVar = translator.specialName(if (isRaw) Identifier.ITERATOR2 else Identifier.ITERATOR)
     out.puts(s"$tempVar := $expr")
     out.puts(s"${privateMemberName(id)} = append(${privateMemberName(id)}, $tempVar)")
+  }
+
+  override def handleAssignmentRepeatUntilBytes(id: Identifier, r: TranslatorResult, isRaw: Boolean): Unit = {
+    val expr = translator.resToStr(handleCompositeTypeCast(id, r))
+    out.puts(s"${localTemporaryName(BytesOutIdentifier)}, err = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr)")
+    translator.outAddErrCheck()
   }
 
   override def condRepeatUntilFooter(id: Identifier, io: String, dataType: DataType, untilExpr: Ast.expr): Unit = {
@@ -397,8 +430,21 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.puts(s"${privateMemberName(id)} = $expr")
   }
 
+  // override def handleAssignmentBinaryBytes(id: Identifier, r: TranslatorResult): Unit = {
+  //   val expr = translator.resToStr(handleCompositeTypeCast(id, r))
+  //   out.puts(s"${localTemporaryName(BytesOutIdentifier)} = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr)")
+  // }
+  override def handleAssignmentSimpleBytes(id: Identifier, r: TranslatorResult): Unit = {
+    val expr = translator.resToStr(handleCompositeTypeCast(id, r))
+    out.puts(s"${localTemporaryName(BytesOutIdentifier)}, err = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr)")
+    translator.outAddErrCheck()
+  }
+
   def handleAssignmentTempVar(dataType: DataType, id: String, expr: String): Unit =
     out.puts(s"$id := $expr")
+
+  override def handleAssignmentTempVarErr(dataType: DataType, id: String, expr: String): Unit =
+    out.puts(s"$id, err := $expr")
 
   override def blockScopeHeader: Unit = {
     out.puts("{")
@@ -428,6 +474,30 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       case t: UserType =>
         val addParams = t.args.map((a) => expression(a)).mkString(", ")
         s"New${GoCompiler.types2class(t.classSpec.get.name, true)}WithParameters($addParams)"
+    }
+  }
+
+  override def bytesExpr(dataType: DataType, id: Identifier, defEndian: Option[FixedEndian]): String = {
+    dataType match {
+      case t: ReadableType =>
+        s"${privateMemberName(id)}"
+      case blt: BytesLimitType =>
+        s"${privateMemberName(id)}"
+      case _: BytesEosType =>
+        s"${privateMemberName(id)}"
+      case BytesTerminatedType(terminator, include, consume, eosError, _) =>
+        if (terminator.length == 1) {
+          val term = terminator.head & 0xff
+          s"${privateMemberName(id)}"
+        } else {
+          s"${privateMemberName(id)}"
+        }
+      case BitsType1(bitEndian) =>
+        s"${privateMemberName(id)}"
+      case BitsType(width: Int, bitEndian) =>
+        s"${privateMemberName(id)}"
+      case t: UserType =>
+        s"${privateMemberName(id)}"
     }
   }
 
@@ -710,6 +780,23 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       out.dec
       out.puts("}")
     }
+    importList.add("bytes")
+    out.puts("func flattenBitBytes(b []byte) []byte {")
+    out.inc
+    out.puts("out := []byte{}")
+    out.puts("for i, bit := range b {")
+    out.inc
+    out.puts("if i % 8 == 0 {")
+    out.inc
+    out.puts("out = append(out, byte(0))")
+    out.dec
+    out.puts("}")
+    out.puts("out[len(out)-1] = out[len(out)-1] | (bit << (i%8))")
+    out.dec
+    out.puts("}")
+    out.puts("return out")
+    out.dec
+    out.puts("}")
   }
 
   override def attrDebugStart(attrId: Identifier, attrType: DataType, ios: Option[String], rep: RepeatSpec): Unit = {
@@ -741,6 +828,69 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   override def debugClassSequenceWithClassName(curClass: List[String], seq: List[AttrSpec]) = {
     val seqStr = seq.map((attr) => "\"" + idToStr(attr.id) + "\"").mkString(", ")
     out.puts(s"var ${types2class(curClass, false)}_Fields = []string{${seqStr}}")
+  }
+
+  def bytesHeader(endian: Option[FixedEndian], isEmpty: Boolean): Unit = {
+    endian match {
+      case None =>
+        out.puts
+        out.puts(
+          s"func (this *${types2class(typeProvider.nowClass.name, false)}) Bytes_() ([]byte, error) {"
+        )
+        out.inc
+        out.puts("var (")
+        out.inc
+        out.puts("err error")
+        out.puts(s"${localTemporaryName(BytesOutIdentifier)} []byte")
+        out.dec
+        out.puts(")")
+        translator.returnRes = Some(s"${localTemporaryName(BytesOutIdentifier)}")
+
+        typeProvider.nowClass.meta.endian match {
+          case Some(_: CalcEndian) =>
+            out.puts(s"${privateMemberName(EndianIdentifier)} = -1")
+          case Some(InheritedEndian) =>
+            out.puts(s"${privateMemberName(EndianIdentifier)} = " +
+              s"${privateMemberName(ParentIdentifier)}." +
+              s"${idToStr(EndianIdentifier)}")
+          case _ =>
+        }
+        out.puts
+      case Some(e) =>
+        out.puts
+        out.puts(
+          s"func (this *${types2class(typeProvider.nowClass.name, false)}) " +
+            s"_read_${e.toSuffix}() (err error) {")
+        out.inc
+    }
+
+  }
+
+  def bytesFooter(): Unit = {
+    out.puts(s"return ${localTemporaryName(BytesOutIdentifier)}, err")
+    universalFooter
+  }
+  override def prepareBitBytes(): Unit = {
+    out.puts("bitVal := []byte{}")
+  }
+  override def endBitBytes(): Unit = {
+    handleAssignmentSimpleBytes(BytesOutIdentifier, ResultString("flattenBitBytes(bitVal)"))
+  }
+  override def appendToBitBytes(r: TranslatorResult): Unit = {
+    val expr = translator.resToStr(r)
+    out.puts(s"bitVal = append(bitVal, byte($expr))")
+  }
+  override def handleBits(id: TranslatorResult, attrType: DataType): Unit = {
+    val expr = translator.resToStr(id)
+    attrType match {
+      case BitsType(width: Int, bitEndian) =>
+        out.puts(s"for i := range ${width} {")
+        out.inc
+        out.puts(s"bitVal = append(bitVal, byte(1 & (uint64($expr) >> i)))")
+        out.dec
+        out.puts("}")
+      case _ => ""
+    }
   }
 }
 
@@ -841,4 +991,6 @@ object GoCompiler extends LanguageCompilerStatic
   }
   def kdebugName: String = "DebugData_"
   def kdebugNameInternal: String = "debugData_"
+
+  def BytesOutIdentifier: Identifier = SpecialIdentifier("_bytes")
 }

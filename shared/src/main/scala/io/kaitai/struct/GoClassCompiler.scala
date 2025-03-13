@@ -57,6 +57,53 @@ class GoClassCompiler(
     compileSubclasses(curClass)
   }
 
+  // Duplicate compileEagerRead to duplicate function, which we'll use for Bytes()
+  def compileSeqForBytes(seq: List[AttrSpec], defEndian: Option[FixedEndian]) = {
+    var wasUnaligned = false
+    seq.foreach { (attr) =>
+      val nowUnaligned = isUnalignedBits(attr.dataType)
+      if (!wasUnaligned && nowUnaligned)
+        golang.prepareBitBytes()
+      if (wasUnaligned && !nowUnaligned)
+        golang.endBitBytes()
+      golang.attrBytes(attr, attr.id, defEndian)
+      wasUnaligned = nowUnaligned
+    }
+    if (wasUnaligned)
+      golang.endBitBytes()
+  }
+
+  def compileSeqProcForBytes(seq: List[AttrSpec], defEndian: Option[FixedEndian]) = {
+    golang.bytesHeader(defEndian, seq.isEmpty)
+    compileSeqForBytes(seq, defEndian)
+    golang.bytesFooter()
+  }
+
+  def compileEagerBytes(seq: List[AttrSpec], endian: Option[Endianness]): Unit = {
+    endian match {
+      case None | Some(_: FixedEndian) =>
+        compileSeqProcForBytes(seq, None)
+      case Some(ce: CalcEndian) =>
+        // TODO
+        // lang.readHeader(None, false)
+        // compileCalcEndian(ce)
+        // lang.runReadCalc()
+        // lang.readFooter()
+
+        // compileSeqProc(seq, Some(LittleEndian))
+        // compileSeqProc(seq, Some(BigEndian))
+      case Some(InheritedEndian) =>
+        // TODO
+        // lang.readHeader(None, false)
+        // lang.runReadCalc()
+        // lang.readFooter()
+
+        // compileSeqProc(seq, Some(LittleEndian))
+        // compileSeqProc(seq, Some(BigEndian))
+    }
+  }
+  // end Bytes() specific
+
   def compileReadFunction(curClass: ClassSpec) = {
     lang.classConstructorHeader(
       curClass.name,
@@ -66,6 +113,7 @@ class GoClassCompiler(
       curClass.params
     )
     compileEagerRead(curClass.seq, curClass.meta.endian)
+    compileEagerBytes(curClass.seq, curClass.meta.endian) // duplicate process here and do bytes too
     lang.classConstructorFooter
   }
 

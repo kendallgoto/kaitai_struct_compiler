@@ -466,9 +466,13 @@ class GoTranslator(out: StringLanguageOutputWriter, provider: TypeProvider, impo
     translateExpr(value)
 
   override def boolToInt(value: Ast.expr): ResultLocalVar = {
+    outBoolToInt(translate(value))
+  }
+
+  def outBoolToInt(value: String): ResultLocalVar = {
     val v = allocateLocalVar()
     out.puts(s"${localVarName(v)} := 0")
-    out.puts(s"if ${translate(value)} {")
+    out.puts(s"if ${value} {")
     out.inc
     out.puts(s"${localVarName(v)} = 1")
     out.dec
