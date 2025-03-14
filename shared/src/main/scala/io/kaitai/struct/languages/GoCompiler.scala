@@ -164,7 +164,26 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       out.puts(s"Debug_ map[string]*${kdebugName}")
     } else {
       out.puts(s"${idToStr(attrName)} ${kaitaiType2NativeType(attrType)}")
+      translator.returnRes = None
     }
+  }
+
+  def attributeDeclarationFromMemberSpec(attr: MemberSpec, isNullable: Boolean): Unit = {
+    val comment = attr match {
+      case t: AttrSpec => if (t.cond.repeat != NoRepeat) {
+        t.cond.repeat match {
+          case RepeatEos | RepeatUntil(_) =>
+            " // dynamic size"
+          case RepeatExpr(repeatExpr: Ast.expr) =>
+            s" // size=${expression(repeatExpr)}"
+          case _ => ""
+        }
+      } else {
+        ""
+      }
+      case _ => ""
+    }
+    out.puts(s"${idToStr(attr.id)} ${kaitaiType2NativeType(attr.dataTypeComposite)}${comment}")
     translator.returnRes = None
   }
 

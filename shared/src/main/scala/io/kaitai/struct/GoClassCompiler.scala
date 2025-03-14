@@ -15,6 +15,17 @@ class GoClassCompiler(
 
   val golang = lang.asInstanceOf[GoCompiler]
 
+  override def compileAttrDeclarations(attrs: List[MemberSpec]): Unit = {
+    attrs.foreach { (attr) =>
+      val isNullable = if (lang.switchBytesOnlyAsRaw) {
+        attr.isNullableSwitchRaw
+      } else {
+        attr.isNullable
+      }
+      golang.attributeDeclarationFromMemberSpec(attr, isNullable)
+    }
+  }
+
   override def compileClass(curClass: ClassSpec): Unit = {
     provider.nowClass = curClass
 
