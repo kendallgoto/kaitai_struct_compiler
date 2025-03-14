@@ -364,6 +364,20 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     // that would be really difficult to do properly in KSC with the current architecture.
     out.puts("_ = i")
   }
+  override def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit = {
+    out.puts(s"if ${privateMemberName(id)} == nil {")
+    out.inc
+    handleAssignmentSimpleBytes(id, ResultString(s"make([]byte, ${expression(repeatExpr)})"))
+    out.dec
+    out.puts("} else {")
+    out.inc
+    condRepeatExprHeader(id, io, dataType, repeatExpr)
+  }
+
+  override def condRepeatExprFooterBytes(): Unit = {
+    universalFooter
+    universalFooter
+  }
 
   override def handleAssignmentRepeatExpr(id: Identifier, r: TranslatorResult): Unit =
     handleAssignmentRepeatEos(id, r)

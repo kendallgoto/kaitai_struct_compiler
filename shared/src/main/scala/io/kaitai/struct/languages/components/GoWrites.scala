@@ -36,7 +36,7 @@ trait GoWrites extends GoReads {
       case RepeatEos =>
         condRepeatEosHeader(id, io, attr.dataType)
       case RepeatExpr(repeatExpr: Ast.expr) =>
-        condRepeatExprHeader(id, io, attr.dataType, repeatExpr)
+        condRepeatExprHeaderBytes(id, io, attr.dataType, repeatExpr)
       case RepeatUntil(untilExpr: Ast.expr) =>
         condRepeatUntilHeader(id, io, attr.dataType, untilExpr)
       case NoRepeat =>
@@ -48,7 +48,7 @@ trait GoWrites extends GoReads {
       case RepeatEos =>
         condRepeatEosFooter
       case _: RepeatExpr =>
-        condRepeatExprFooter
+        condRepeatExprFooterBytes
       case RepeatUntil(untilExpr: Ast.expr) =>
         condRepeatUntilFooter(id, io, attr.dataType, untilExpr)
       case NoRepeat =>
@@ -196,4 +196,6 @@ trait GoWrites extends GoReads {
   def endBitBytes(): Unit
   def appendToBitBytes(r: TranslatorResult): Unit
   def handleBits(id: TranslatorResult, attrType: DataType): Unit
+  def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit
+  def condRepeatExprFooterBytes: Unit
 }
