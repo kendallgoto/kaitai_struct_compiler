@@ -361,6 +361,12 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.puts("}")
   }
 
+  override def condRepeatEosHeaderBytes(id: Identifier, io: String, dataType: DataType): Unit = {
+    out.puts(s"for i := range ${privateMemberName(id)} {")
+    out.inc
+    out.puts("_ = i")
+  }
+
   override def handleAssignmentRepeatEos(id: Identifier, r: TranslatorResult): Unit = {
     val name = privateMemberName(id)
     val expr = translator.resToStr(r)
@@ -383,17 +389,30 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     // that would be really difficult to do properly in KSC with the current architecture.
     out.puts("_ = i")
   }
-  override def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit = {
+
+  override def condRepeatEmptyCheck(id: Identifier, repeatExpr: Ast.expr): Unit = {
     out.puts(s"if ${privateMemberName(id)} == nil {")
     out.inc
     handleAssignmentSimpleBytes(id, ResultString(s"make([]byte, ${expression(repeatExpr)})"))
     out.dec
     out.puts("} else {")
     out.inc
+  }
+
+  override def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit = {
     condRepeatExprHeader(id, io, dataType, repeatExpr)
   }
 
   override def condRepeatExprFooterBytes(): Unit = {
+    universalFooter
+    universalFooter
+  }
+
+  override def condRepeatEosFooter(): Unit = {
+    universalFooter
+  }
+
+  override def condRepeatEosFooterBytes(): Unit = {
     universalFooter
     universalFooter
   }
