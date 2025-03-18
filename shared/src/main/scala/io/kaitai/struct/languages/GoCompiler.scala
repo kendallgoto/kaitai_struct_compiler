@@ -957,6 +957,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       case _ => ""
     }
   }
+  override def kaitaiType2NativeType2(attrType: DataType): String = kaitaiType2NativeType(attrType)
 }
 
 object GoCompiler extends LanguageCompilerStatic

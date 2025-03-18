@@ -111,8 +111,8 @@ trait GoWrites extends GoReads {
         attrUserTypeBytes(id, t, io, rep, defEndian)
       // case t: BytesType =>
       //   attrBytesTypeBytes(id, t, io, rep, isRaw)
-      // case st: SwitchType =>
-      //   attrSwitchTypeBytes(id, st.on, st.cases, io, rep, defEndian, st.isNullableSwitchRaw, st.combinedType)
+      case st: SwitchType =>
+        attrSwitchTypeBytes(id, st.on, st.cases, io, rep, defEndian, st.isNullableSwitchRaw, st.combinedType)
       // case t: StrFromBytesType =>
       //   val r1 = bytesExprBytes(translator.outVarCheckRes(bytesExpr(t.bytes, id, defEndian)), t.bytes)
       //   val expr = translator.bytesToStr(translator.resToStr(r1), t.encoding)
@@ -167,9 +167,14 @@ trait GoWrites extends GoReads {
     val expr = bytesExpr(dataType, id, defEndian)
     val v = ResultLocalVar(translator.allocateLocalVar())
     val tempVarName = translator.resToStr(v)
+    val originalType = typeProvider.determineType(id)
+    val typecast = originalType match {
+      case SwitchType(_,_,_,_) => s".(${kaitaiType2NativeType2(dataType)})"
+      case _ => ""
+    }
     rep match {
-      case NoRepeat => handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}.Bytes_()")
-      case _ => handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}[i].Bytes_()")
+      case NoRepeat => handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}${typecast}.Bytes_()")
+      case _ => handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}[i]${typecast}.Bytes_()")
     }
     translator.outAddErrCheck()
     handleAssignmentSimpleBytes(id, v)
@@ -203,4 +208,5 @@ trait GoWrites extends GoReads {
   def condRepeatEosHeaderBytes(id: Identifier, io: String, dataType: DataType): Unit
   def condRepeatExprFooterBytes: Unit
   def condRepeatEosFooterBytes: Unit
+  def kaitaiType2NativeType2(attrType: DataType): String
 }
