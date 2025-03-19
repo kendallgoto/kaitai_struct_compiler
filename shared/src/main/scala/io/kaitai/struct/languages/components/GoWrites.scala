@@ -164,6 +164,7 @@ trait GoWrites extends GoReads {
   }
 
   def attrUserTypeBytes(id: Identifier, dataType: UserType, io: String, rep: RepeatSpec, defEndian: Option[FixedEndian]): Unit = {
+    checkIfNull(id)
     val expr = bytesExpr(dataType, id, defEndian)
     val v = ResultLocalVar(translator.allocateLocalVar())
     val tempVarName = translator.resToStr(v)
@@ -178,6 +179,7 @@ trait GoWrites extends GoReads {
     }
     translator.outAddErrCheck()
     handleAssignmentSimpleBytes(id, v)
+    blockScopeFooter
   }
 
   def handleAssignmentBytes(id: Identifier, expr: TranslatorResult, rep: RepeatSpec, isRaw: Boolean): Unit = {
@@ -209,4 +211,5 @@ trait GoWrites extends GoReads {
   def condRepeatExprFooterBytes: Unit
   def condRepeatEosFooterBytes: Unit
   def kaitaiType2NativeType2(attrType: DataType): String
+  def checkIfNull(id: Identifier): Unit
 }

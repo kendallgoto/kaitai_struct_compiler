@@ -342,6 +342,11 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.inc
   }
 
+  override def checkIfNull(id: Identifier): Unit = {
+    out.puts(s"if (${privateMemberName(id)} != nil) {")
+    out.inc
+  }
+
   override def condRepeatInitAttr(id: Identifier, dataType: DataType): Unit = {
     // slices don't have to be manually initialized in Go: the built-in append()
     // function works even on `nil` slices (https://go.dev/tour/moretypes/15)
