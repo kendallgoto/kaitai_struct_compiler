@@ -705,11 +705,15 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
 
     // Inspired by https://gist.github.com/bgadrian/cb8b9344d9c66571ef331a14eb7a2e80
     val mapEntriesStr = enumColl.map { case (id, label) => s"$id: \"${type2class(label.name)}\"" }.mkString(", ")
-    out.puts(s"var valueNames_$fullEnumNameStr = map[$fullEnumNameStr]string{$mapEntriesStr}")
+    val valuesArrayStr = enumColl.map { case (id, label) => s"$id" }.mkString(", ")
+    val namesArrayStr = enumColl.map { case (id, label) => s"\"${type2class(label.name)}\"" }.mkString(", ")
+    out.puts(s"var values_$fullEnumNameStr = map[$fullEnumNameStr]string{$mapEntriesStr}")
+    out.puts(s"var valueValues_$fullEnumNameStr = []$fullEnumNameStr{$valuesArrayStr}")
+    out.puts(s"var valueNames_$fullEnumNameStr = []string{$namesArrayStr}")
 
     out.puts(s"func (v $fullEnumNameStr) isDefined() bool {")
     out.inc
-    out.puts(s"_, ok := valueNames_$fullEnumNameStr[v]")
+    out.puts(s"_, ok := values_$fullEnumNameStr[v]")
     out.puts("return ok")
     out.dec
     out.puts("}")
@@ -722,7 +726,7 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
 
     out.puts(s"func (v $fullEnumNameStr) String() string {")
     out.inc
-    out.puts(s"name, ok := valueNames_$fullEnumNameStr[v]")
+    out.puts(s"name, ok := values_$fullEnumNameStr[v]")
     out.puts("if ok {")
     out.inc
     out.puts("return name")
@@ -745,25 +749,13 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
 
     out.puts(s"func ${fullEnumNameStr}Strings() []string {")
     out.inc
-    out.puts(s"strings := make([]string, 0, len(valueNames_$fullEnumNameStr))")
-    out.puts(s"for _, name := range valueNames_$fullEnumNameStr {")
-    out.inc
-    out.puts("strings = append(strings, name)")
-    out.dec
-    out.puts("}")
-    out.puts("return strings")
+    out.puts(s"return valueNames_$fullEnumNameStr")
     out.dec
     out.puts("}")
 
     out.puts(s"func ${fullEnumNameStr}Values() []${fullEnumNameStr} {")
     out.inc
-    out.puts(s"values := make([]${fullEnumNameStr}, 0, len(valueNames_$fullEnumNameStr))")
-    out.puts(s"for value := range valueNames_$fullEnumNameStr {")
-    out.inc
-    out.puts("values = append(values, value)")
-    out.dec
-    out.puts("}")
-    out.puts("return values")
+    out.puts(s"return valueValues_$fullEnumNameStr")
     out.dec
     out.puts("}")
   }
