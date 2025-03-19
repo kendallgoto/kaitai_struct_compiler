@@ -404,11 +404,26 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.inc
   }
 
-  override def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit = {
-    condRepeatExprHeader(id, io, dataType, repeatExpr)
+  override def condEmptySingleCheck(id: Identifier, expr: String): Unit = {
+    out.puts(s"if ${expr} == nil {")
+    out.inc
+    handleAssignmentSimpleBytes(id, ResultString(s"[]byte{0}"))
+    out.dec
+    out.puts("} else {")
+    out.inc
   }
 
-  override def condRepeatExprFooterBytes(): Unit = {
+  override def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit = {
+    out.puts(s"for i := 0; i < len(${privateMemberName(id)}); i++ {")
+    out.inc
+    out.puts("_ = i")
+  }
+
+  override def condRepeatExprFooterBytes(id: Identifier, repeatExpr: Ast.expr): Unit = {
+    universalFooter
+    out.puts(s"if i := int(${expression(repeatExpr)}) - len(${privateMemberName(id)}); i > 0 {")
+    out.inc
+    handleAssignmentSimpleBytes(id, ResultString(s"make([]byte, i)"))
     universalFooter
     universalFooter
   }

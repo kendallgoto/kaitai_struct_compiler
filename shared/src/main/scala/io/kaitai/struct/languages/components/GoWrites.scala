@@ -49,8 +49,8 @@ trait GoWrites extends GoReads {
     attr.cond.repeat match {
       case RepeatEos =>
         condRepeatEosFooterBytes
-      case _: RepeatExpr =>
-        condRepeatExprFooterBytes
+      case RepeatExpr(repeatExpr: Ast.expr) =>
+        condRepeatExprFooterBytes(id, repeatExpr)
       case RepeatUntil(untilExpr: Ast.expr) =>
         condRepeatUntilFooter(id, io, attr.dataType, untilExpr)
       case NoRepeat =>
@@ -175,10 +175,19 @@ trait GoWrites extends GoReads {
     }
     rep match {
       case NoRepeat => handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}${typecast}.Bytes_()")
-      case _ => handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}[i]${typecast}.Bytes_()")
+      case _ => {
+        condEmptySingleCheck(id, s"${expr}[i]")
+        handleAssignmentTempVarErr(dataType, tempVarName, s"${expr}[i]${typecast}.Bytes_()")
+      }
     }
     translator.outAddErrCheck()
     handleAssignmentSimpleBytes(id, v)
+    rep match {
+      case NoRepeat =>
+      case _ => {
+        blockScopeFooter
+      }
+    }
     blockScopeFooter
   }
 
@@ -208,8 +217,9 @@ trait GoWrites extends GoReads {
   def condRepeatEmptyCheck(id: Identifier, repeatExpr: Ast.expr): Unit
   def condRepeatExprHeaderBytes(id: Identifier, io: String, dataType: DataType, repeatExpr: Ast.expr): Unit
   def condRepeatEosHeaderBytes(id: Identifier, io: String, dataType: DataType): Unit
-  def condRepeatExprFooterBytes: Unit
+  def condRepeatExprFooterBytes(id: Identifier, repeatExpr: Ast.expr): Unit
   def condRepeatEosFooterBytes: Unit
   def kaitaiType2NativeType2(attrType: DataType): String
   def checkIfNull(id: Identifier): Unit
+  def condEmptySingleCheck(id: Identifier, expr: String): Unit
 }
