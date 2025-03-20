@@ -832,10 +832,10 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   
   def readShortcut(): Unit = {
     out.puts
-    out.puts(s"func New${types2class(typeProvider.nowClass.name, false)}(io *$kstreamName) (*${types2class(typeProvider.nowClass.name, false)}, error) {")
+    out.puts(s"func New${types2class(typeProvider.nowClass.name, false)}(data []byte) (*${types2class(typeProvider.nowClass.name, false)}, error) {")
     out.inc
     out.puts(s"o := &${types2class(typeProvider.nowClass.name, false)}{}")
-    out.puts(s"return o, o.Read(io, nil, o)")
+    out.puts(s"return o, o.Read(kaitai.NewStream(bytes.NewReader(data)), nil, o)")
     out.dec
     out.puts("}")
   }
