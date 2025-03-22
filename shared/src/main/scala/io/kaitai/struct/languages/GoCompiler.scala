@@ -970,6 +970,19 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     }
   }
   override def kaitaiType2NativeType2(attrType: DataType): String = kaitaiType2NativeType(attrType)
+
+  def compileEnumLists(curClass: ClassSpec): Unit = {
+    val enumValues = curClass.enums.map {
+      case(name, values) => {
+        s"${type2class(name)}(0):{" + values.map.map {
+          case(id, _) => {
+            id
+          }
+        }.mkString(",") + "}"
+      }
+    }.mkString(",")
+    out.puts(s"var DefinedEnumValues = map[interface{}][]int{${enumValues}}")
+  }
 }
 
 object GoCompiler extends LanguageCompilerStatic

@@ -1,5 +1,6 @@
 package io.kaitai.struct
 
+import io.kaitai.struct.CompileLog.FileSuccess
 import io.kaitai.struct.datatype.DataType.{CalcIntType, KaitaiStreamType, AnyType, KaitaiStructType, UserTypeInstream}
 import io.kaitai.struct.datatype.{BigEndian, CalcEndian, Endianness, FixedEndian, InheritedEndian, LittleEndian}
 import io.kaitai.struct.exprlang.Ast
@@ -14,6 +15,18 @@ class GoClassCompiler(
 ) extends ClassCompiler(classSpecs, topClass, config, GoCompiler) {
 
   val golang = lang.asInstanceOf[GoCompiler]
+
+  override def compile: CompileLog.SpecSuccess = {
+    lang.fileHeader(topClassName.head)
+    compileExternalTypes(topClass)
+    compileClass(topClass)
+    golang.compileEnumLists(topClass)
+    lang.fileFooter(topClassName.head)
+    CompileLog.SpecSuccess(
+      lang.type2class(topClassName.head),
+      lang.results(topClass).map { case (fileName, contents) => FileSuccess(fileName, contents) }.toList
+    )
+  }
 
   override def compileAttrDeclarations(attrs: List[MemberSpec]): Unit = {
     attrs.foreach { (attr) =>
