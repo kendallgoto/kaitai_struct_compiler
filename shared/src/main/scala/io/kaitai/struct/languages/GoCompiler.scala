@@ -521,7 +521,11 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
   // }
   override def handleAssignmentSimpleBytes(id: Identifier, r: TranslatorResult): Unit = {
     val expr = translator.resToStr(handleCompositeTypeCastForceEnums(id, r))
-    out.puts(s"${localTemporaryName(BytesOutIdentifier)}, err = binary.Append(${localTemporaryName(BytesOutIdentifier)}, binary.LittleEndian, $expr)")
+    val endianType = typeProvider.nowClass.meta.endian match {
+      case Some(BigEndian) => "binary.BigEndian"
+      case _ => "binary.LittleEndian"
+    }
+    out.puts(s"${localTemporaryName(BytesOutIdentifier)}, err = binary.Append(${localTemporaryName(BytesOutIdentifier)}, ${endianType}, $expr)")
     translator.outAddErrCheck()
   }
 
@@ -951,6 +955,15 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
     out.puts("bitVal := []byte{}")
   }
   override def endBitBytes(): Unit = {
+    typeProvider.nowClass.meta.bitEndian match {
+      case Some(BigBitEndian) =>
+        out.puts("for i, j := 0, len(bitVal)-1; i < j; i, j = i+1, j-1 {")
+        out.inc
+        out.puts("bitVal[i], bitVal[j] = bitVal[j], bitVal[i]")
+        out.dec
+        out.puts("}")
+      case _ =>
+    }
     handleAssignmentSimpleBytes(BytesOutIdentifier, ResultString("flattenBitBytes(bitVal)"))
   }
   override def appendToBitBytes(r: TranslatorResult): Unit = {
@@ -963,7 +976,12 @@ class GoCompiler(typeProvider: ClassTypeProvider, config: RuntimeConfig)
       case BitsType(width: Int, bitEndian) =>
         out.puts(s"for i := range ${width} {")
         out.inc
-        out.puts(s"bitVal = append(bitVal, byte(1 & (uint64($expr) >> i)))")
+        bitEndian match {
+          case BigBitEndian =>
+            out.puts(s"bitVal = append(bitVal, byte(1 & (uint64($expr) >> (${width}-i-1))))")
+          case _ =>
+            out.puts(s"bitVal = append(bitVal, byte(1 & (uint64($expr) >> i)))")
+        }
         out.dec
         out.puts("}")
       case _ => ""
